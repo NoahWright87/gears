@@ -1,0 +1,971 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gear Idle Game</title>
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom styles for the SVG container */
+        #gearSVG {
+            width: 950px; 
+            height: 500px;
+            border: 4px solid #1f2937; /* Dark border */
+            border-radius: 1rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            background-color: #e5e7eb; /* Light gray background */
+            cursor: crosshair;
+            user-select: none;
+            overflow: hidden; 
+        }
+        
+        /* Layer specific styles */
+        .layer-0 { filter: brightness(1.0); }
+        .layer-1 { filter: drop-shadow(0px 4px 2px rgba(0,0,0,0.3)); }
+        .layer-2 { filter: drop-shadow(0px 8px 4px rgba(0,0,0,0.4)); }
+        
+        /* Inactive layers (below current) look dimmed */
+        .layer-inactive { opacity: 0.4; pointer-events: none; }
+
+        .gear-path {
+            stroke-width: 2;
+            transition: fill 0.2s;
+        }
+        .gear-hole {
+            fill: #f4f4f4; 
+            stroke: #3730a3;
+            stroke-width: 2;
+        }
+        
+        /* Boundary Circle */
+        #worldBoundary {
+            fill: none;
+            stroke: #9ca3af; /* Gray 400 */
+            stroke-width: 2;
+            stroke-dasharray: 10, 10;
+            pointer-events: none;
+        }
+
+        /* Floating point text animation */
+        .floating-score {
+            font-family: 'Inter', sans-serif;
+            font-weight: 900; 
+            font-size: 24px; 
+            fill: #059669; 
+            stroke: white; 
+            stroke-width: 1px;
+            paint-order: stroke; 
+            pointer-events: none;
+            text-anchor: middle;
+            animation: floatUp 2.5s ease-out forwards; 
+            opacity: 0;
+            z-index: 50;
+        }
+        .floating-score.cost {
+            fill: #dc2626; 
+        }
+        @keyframes floatUp {
+            0% { transform: translateY(0); opacity: 1; }
+            70% { opacity: 1; }
+            100% { transform: translateY(-50px); opacity: 0; }
+        }
+
+        /* --- UI LAYER STYLES --- */
+        .hud-bg {
+            fill: rgba(31, 41, 55, 0.9); 
+            pointer-events: none; 
+        }
+
+        .canvas-score {
+            font-family: 'Courier New', monospace; 
+            font-weight: bold;
+            font-size: 48px;
+            fill: #ffffff; 
+            opacity: 1;
+            pointer-events: none;
+            text-shadow: 0px 2px 4px rgba(0,0,0,0.5);
+        }
+        .canvas-score-label {
+            font-family: 'Inter', sans-serif;
+            font-size: 14px;
+            fill: #9ca3af; 
+            text-anchor: end;
+            pointer-events: none;
+        }
+
+        /* Button Styles */
+        .btn-group {
+            cursor: pointer;
+            pointer-events: all; 
+        }
+        .btn-bg {
+            fill: #4f46e5; /* Indigo 600 */
+            stroke: #312e81; 
+            stroke-width: 2px;
+            transition: fill 0.2s;
+        }
+        .btn-group:hover .btn-bg {
+            fill: #4338ca; 
+        }
+        .btn-group:active .btn-bg {
+            fill: #312e81; 
+        }
+        .btn-icon {
+            fill: white;
+            pointer-events: none;
+        }
+        .btn-label {
+            font-family: 'Inter', sans-serif;
+            font-size: 11px;
+            font-weight: bold;
+            fill: white;
+            text-anchor: middle;
+            pointer-events: none;
+            text-shadow: 0px 1px 2px rgba(0,0,0,0.8);
+        }
+        .btn-group.disabled .btn-bg {
+            fill: #6b7280; 
+            stroke: #4b5563;
+        }
+        .btn-group.disabled {
+            cursor: not-allowed;
+        }
+
+        /* Layer Control Buttons */
+        .layer-control-bg { fill: #374151; stroke: #4b5563; }
+        .btn-group:hover .layer-control-bg { fill: #4b5563; }
+        .btn-group:active .layer-control-bg { fill: #1f2937; }
+        .layer-display-text {
+            font-family: 'Inter', sans-serif;
+            font-weight: bold;
+            font-size: 16px;
+            fill: #fbbf24; /* Amber 400 */
+            text-anchor: middle;
+            pointer-events: none;
+        }
+
+        /* Tooltips */
+        .tooltip-group { opacity: 0; transition: opacity 0.2s; pointer-events: none; }
+        #speedBtn:hover ~ #speedTooltip,
+        #qualityBtn:hover ~ #qualityTooltip,
+        #expandBtn:hover ~ #expandTooltip,
+        #layerUpBtn:hover ~ #layerTooltip { opacity: 1; }
+
+        .tooltip-bg { fill: rgba(0, 0, 0, 0.9); rx: 4; }
+        .tooltip-text { font-family: 'Inter', sans-serif; font-size: 12px; fill: white; text-anchor: start; }
+        .tooltip-price { font-weight: bold; fill: #fbbf24; }
+
+        /* Preview elements */
+        .preview-circle { stroke: #10b981; fill: #10b98140; stroke-width: 3; pointer-events: none; }
+        .preview-circle.error { stroke: #ef4444; fill: #ef444440; }
+        .preview-text { font-family: 'Inter', sans-serif; font-weight: bold; font-size: 14px; text-anchor: middle; pointer-events: none; fill: #065f46; text-shadow: 0px 0px 3px rgba(255,255,255,0.8); }
+        .preview-circle.error + .preview-text { fill: #991b1b; }
+
+    </style>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center p-4">
+
+    <div class="bg-white rounded-xl shadow-2xl p-6 md:p-10 w-full max-w-7xl flex flex-col lg:flex-row gap-8">
+        
+        <!-- Left Panel -->
+        <div class="w-full lg:w-1/3 space-y-6">
+            <h1 class="text-3xl font-bold text-gray-800 border-b pb-2 mb-4">Gear Factory Idle</h1>
+            
+            <div class="bg-indigo-900 text-white p-6 rounded-lg shadow-lg text-center">
+                <p class="text-sm uppercase tracking-widest text-indigo-300">Total Funds</p>
+                <p id="scoreDisplay" class="text-5xl font-mono font-bold mt-2">0</p>
+            </div>
+
+            <!-- Layer Info -->
+            <div class="p-4 bg-blue-50 border border-blue-200 rounded-lg text-sm text-gray-700">
+                <p class="font-bold text-blue-800 mb-1">Layer Mechanics:</p>
+                <ul class="list-disc list-inside space-y-1">
+                    <li>**Layer 0:** Standard gears.</li>
+                    <li>**Layer 1+:** Must be built on top of a lower gear ("The Mount").</li>
+                    <li>**Windmills:** Higher layers have deeper teeth and earn more points.</li>
+                    <li>Use the **Arrow Buttons** in the HUD to change layers.</li>
+                </ul>
+            </div>
+
+
+        </div>
+        
+        <!-- Right Panel: SVG Canvas -->
+        <div class="w-full lg:w-2/3 flex flex-col items-center justify-center relative">
+            <svg id="gearSVG" viewBox="-475 -250 950 500" oncontextmenu="return false;">
+                
+                <!-- WORLD SPACE -->
+                <g id="cameraGroup">
+                    <circle id="worldBoundary" cx="0" cy="0" r="230"></circle>
+                    <g id="gearContainer"></g> <!-- Gears rendered here -->
+                    
+                    <!-- Preview -->
+                    <g id="previewGroup" style="opacity: 0;">
+                        <circle id="previewCircle" class="preview-circle" r="0" cx="0" cy="0"></circle>
+                        <circle id="previewCenter" class="preview-circle" r="5" cx="0" cy="0" style="fill: #10b981;"></circle>
+                        <text id="previewText" class="preview-text" x="0" y="0" dy="-10">Cost: 0</text>
+                    </g>
+                    <g id="effectContainer"></g>
+                </g>
+
+                <!-- UI LAYER -->
+                <g id="uiLayer">
+                    <rect class="hud-bg" x="-475" y="170" width="950" height="80"></rect>
+
+                    <text x="450" y="200" text-anchor="end" class="canvas-score-label">CURRENT FUNDS</text>
+                    <text id="canvasScore" x="450" y="235" text-anchor="end" class="canvas-score">500</text>
+                    
+                    <!-- LAYER CONTROLS (Center Bottom) -->
+                    <g id="layerControls" transform="translate(0, 210)">
+                        <text id="layerDisplay" class="layer-display-text" y="5">LAYER 0</text>
+                        
+                        <!-- Down Arrow -->
+                        <g id="layerDownBtn" class="btn-group" transform="translate(-60, -15)" onclick="changeLayer(-1)">
+                            <rect class="layer-control-bg" width="30" height="30" rx="4"></rect>
+                            <path class="btn-icon" transform="translate(8, 8)" d="M10 4L2 12h16z" transform="rotate(180 8 8)" fill="white"/>
+                            <text x="15" y="20" text-anchor="middle" fill="white" font-weight="bold" font-size="14">↓</text>
+                        </g>
+
+                        <!-- Up/Buy Arrow -->
+                        <g id="layerUpBtn" class="btn-group" transform="translate(30, -15)" onclick="changeLayer(1)">
+                            <rect class="layer-control-bg" width="30" height="30" rx="4"></rect>
+                            <text x="15" y="20" text-anchor="middle" fill="white" font-weight="bold" font-size="14">↑</text>
+                        </g>
+                    </g>
+
+                    <!-- UPGRADE BUTTONS -->
+                    <g id="speedBtn" class="btn-group" transform="translate(-455, 180)">
+                        <rect class="btn-bg" width="60" height="60" rx="8"></rect>
+                        <path class="btn-icon" transform="translate(15, 10) scale(1.5)" d="M13 10V3L4 14h7v7l9-11h-7z" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                        <text id="speedBtnLabel" x="30" y="52" class="btn-label">Lvl 1</text>
+                    </g>
+
+                    <g id="qualityBtn" class="btn-group" transform="translate(-385, 180)">
+                        <rect class="btn-bg" width="60" height="60" rx="8"></rect>
+                        <path class="btn-icon" transform="translate(15, 10) scale(1.5)" d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                        <text id="qualityBtnLabel" x="30" y="52" class="btn-label">0/20</text>
+                    </g>
+                    
+                    <g id="expandBtn" class="btn-group" transform="translate(-315, 180)">
+                        <rect class="btn-bg" width="60" height="60" rx="8"></rect>
+                        <path class="btn-icon" transform="translate(15, 10) scale(1.5)" d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+                        <text id="expandBtnLabel" x="30" y="52" class="btn-label">Lvl 0</text>
+                    </g>
+
+                    <!-- TOOLTIPS -->
+                    <g id="speedTooltip" class="tooltip-group" transform="translate(-495, 110)">
+                        <rect class="tooltip-bg" width="140" height="60"></rect>
+                        <text x="10" y="20" class="tooltip-text" style="font-weight:bold;">UPGRADE SPEED</text>
+                        <text id="speedTooltipCost" x="10" y="45" class="tooltip-text tooltip-price">Cost: 250</text>
+                    </g>
+
+                    <g id="qualityTooltip" class="tooltip-group" transform="translate(-425, 110)">
+                        <rect class="tooltip-bg" width="140" height="60"></rect>
+                        <text x="10" y="20" class="tooltip-text" style="font-weight:bold;">UPGRADE QUALITY</text>
+                        <text id="qualityTooltipCost" x="10" y="45" class="tooltip-text tooltip-price">Cost: 500</text>
+                    </g>
+
+                    <g id="expandTooltip" class="tooltip-group" transform="translate(-355, 110)">
+                        <rect class="tooltip-bg" width="140" height="60"></rect>
+                        <text x="10" y="20" class="tooltip-text" style="font-weight:bold;">EXPAND SPACE</text>
+                        <text id="expandTooltipCost" x="10" y="45" class="tooltip-text tooltip-price">Cost: 1,000</text>
+                    </g>
+                    
+                    <g id="layerTooltip" class="tooltip-group" transform="translate(-40, 140)">
+                        <rect class="tooltip-bg" width="140" height="60"></rect>
+                        <text x="10" y="20" class="tooltip-text" style="font-weight:bold;">BUY NEXT LAYER</text>
+                        <text id="layerTooltipCost" x="10" y="45" class="tooltip-text tooltip-price">Cost: 5,000</text>
+                    </g>
+
+                </g>
+            </svg>
+            <p id="mouseDebug" class="text-sm text-gray-600 mt-2">Mouse: (0, 0) | Layer: 0</p>
+        </div>
+        
+    </div>
+
+    <script>
+        // --- CONSTANTS ---
+        const STARTING_SCORE = 500;
+        
+        // --- LAYER CONFIG ---
+        // Each layer increases module (tooth size) and points
+        // L0: Mod 5, L1: Mod 8, L2: Mod 12...
+        const LAYER_CONFIG = [
+            { module: 5, colorClass: 'layer-0' }, 
+            { module: 8, colorClass: 'layer-1' },
+            { module: 12, colorClass: 'layer-2' },
+            { module: 16, colorClass: 'layer-3' } // Future proofing
+        ];
+        
+        const INITIAL_LAYER_COST = 5000;
+        const LAYER_COST_MULTIPLIER = 4.0; // Very expensive
+
+        // --- UPGRADE CONFIGS ---
+        const INITIAL_SPEED = 0.3; 
+        const SPEED_INCREMENT = 0.2;
+        const INITIAL_SPEED_COST = 250;
+        const SPEED_COST_MULTIPLIER = 1.5;
+
+        const MAX_QUALITY_LEVEL = 20;
+        const INITIAL_QUALITY_COST = 500;
+        const QUALITY_COST_MULTIPLIER = 1.5;
+        const MAX_HUE = 270;
+        const QUALITY_BONUS_PER_LEVEL = 0.2;
+
+        const INITIAL_EXPANSION_COST = 1000;
+        const EXPANSION_COST_MULTIPLIER = 2.0; 
+        const INITIAL_RADIUS = 230; 
+        const EXPANSION_FACTOR = 1.2; 
+
+        // --- DOM Elements ---
+        const svg = document.getElementById('gearSVG');
+        const cameraGroup = document.getElementById('cameraGroup');
+        const gearContainer = document.getElementById('gearContainer');
+        const effectContainer = document.getElementById('effectContainer');
+        const previewGroup = document.getElementById('previewGroup');
+        const previewCircle = document.getElementById('previewCircle');
+        const previewCenter = document.getElementById('previewCenter');
+        const previewText = document.getElementById('previewText');
+        const worldBoundary = document.getElementById('worldBoundary');
+        
+        const mouseDebug = document.getElementById('mouseDebug');
+        const scoreDisplay = document.getElementById('scoreDisplay');
+        const canvasScore = document.getElementById('canvasScore');
+        
+        const speedBtn = document.getElementById('speedBtn');
+        const speedBtnLabel = document.getElementById('speedBtnLabel');
+        const speedTooltipCost = document.getElementById('speedTooltipCost');
+        
+        const qualityBtn = document.getElementById('qualityBtn');
+        const qualityBtnLabel = document.getElementById('qualityBtnLabel');
+        const qualityTooltipCost = document.getElementById('qualityTooltipCost');
+
+        const expandBtn = document.getElementById('expandBtn');
+        const expandBtnLabel = document.getElementById('expandBtnLabel');
+        const expandTooltipCost = document.getElementById('expandTooltipCost');
+        
+        const layerDisplay = document.getElementById('layerDisplay');
+        const layerUpBtn = document.getElementById('layerUpBtn');
+        const layerDownBtn = document.getElementById('layerDownBtn');
+        const layerTooltipCost = document.getElementById('layerTooltipCost');
+
+        // --- State Variables ---
+        let gears = []; 
+        let isRotating = false;
+        let animationFrameId = null;
+        let score = STARTING_SCORE;
+        
+        // Camera State
+        let camX = 0; let camY = 0; let camZoom = 1;
+        let isDragging = false;
+        let lastMouseX = 0; let lastMouseY = 0;
+        let worldRadius = INITIAL_RADIUS;
+
+        // Upgrade State
+        let speedLevel = 1;
+        let currentRotationSpeed = INITIAL_SPEED;
+        let currentSpeedCost = INITIAL_SPEED_COST;
+
+        let qualityLevel = 0;
+        let currentQualityCost = INITIAL_QUALITY_COST;
+
+        let expansionLevel = 0;
+        let currentExpansionCost = INITIAL_EXPANSION_COST;
+        
+        // Layer State
+        let currentViewLayer = 0;
+        let maxUnlockedLayer = 0;
+        let currentLayerCost = INITIAL_LAYER_COST;
+
+        // --- UTILITY ---
+        function getSVGCoords(event) {
+            const pt = svg.createSVGPoint();
+            pt.x = event.clientX;
+            pt.y = event.clientY;
+            return pt.matrixTransform(svg.getScreenCTM().inverse());
+        }
+        function getWorldCoords(svgP) {
+            return { x: (svgP.x - camX) / camZoom, y: (svgP.y - camY) / camZoom };
+        }
+        function distance(p1, p2) {
+            return Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2));
+        }
+        function updateScore(amount) {
+            score += amount;
+            const scoreStr = Math.floor(score).toLocaleString();
+            scoreDisplay.textContent = scoreStr;
+            canvasScore.textContent = scoreStr; 
+            updateButtonStates(); 
+        }
+        function spawnFloatingText(x, y, text, isCost = false) {
+            const textEl = document.createElementNS("http://www.w3.org/2000/svg", 'text');
+            textEl.setAttribute('x', x);
+            textEl.setAttribute('y', y);
+            textEl.setAttribute('class', `floating-score ${isCost ? 'cost' : ''}`);
+            textEl.textContent = text;
+            effectContainer.appendChild(textEl);
+            setTimeout(() => { if (effectContainer.contains(textEl)) effectContainer.removeChild(textEl); }, 2500); 
+        }
+        function getGearColor(hue) { return `hsl(${hue}, 80%, 50%)`; }
+        function getGearStroke(hue) { return `hsl(${hue}, 90%, 30%)`; }
+
+        // --- GEAR GENERATION ---
+        
+        function getLayerParams(layerIndex) {
+            // Default to layer 0 config if out of bounds (fallback)
+            return LAYER_CONFIG[layerIndex] || LAYER_CONFIG[0];
+        }
+
+        function generateGearPath(numTeeth, R_outer, R_base, layer) {
+            const path = [];
+            const totalAnglePerTooth = (2 * Math.PI) / numTeeth;
+            
+            // "Windmill" effect for higher layers: Wider teeth, steeper valleys
+            // We adjust tooth width ratio based on layer
+            const toothWidthRatio = layer === 0 ? 0.4 : 0.3; 
+            
+            const toothAngle = totalAnglePerTooth * toothWidthRatio;
+            const spaceAngle = totalAnglePerTooth * (1 - toothWidthRatio);
+
+            const getCoords = (r, angle) => ({
+                x: (r * Math.cos(angle)).toFixed(2),
+                y: (r * Math.sin(angle)).toFixed(2)
+            });
+
+            for (let i = 0; i < numTeeth; i++) {
+                const startAngle = i * totalAnglePerTooth;
+                const p1 = getCoords(R_base, startAngle);
+                const p2 = getCoords(R_outer, startAngle + spaceAngle / 2);
+                const p3 = getCoords(R_outer, startAngle + spaceAngle / 2 + toothAngle);
+                const p4 = getCoords(R_base, startAngle + totalAnglePerTooth - spaceAngle / 2);
+
+                if (i === 0) path.push(`M ${p1.x} ${p1.y}`);
+                else path.push(`A ${R_base} ${R_base} 0 0 0 ${p1.x} ${p1.y}`);
+
+                path.push(`L ${p2.x} ${p2.y}`);
+                path.push(`L ${p3.x} ${p3.y}`);
+                path.push(`L ${p4.x} ${p4.y}`);
+            }
+            path.push('Z');
+            return path.join(' ');
+        }
+
+        // --- LAYER LOGIC ---
+
+        function changeLayer(delta) {
+            const target = currentViewLayer + delta;
+            
+            if (target < 0) return; // Can't go below 0
+            
+            if (target > maxUnlockedLayer) {
+                // Trying to go up to a locked layer -> Attempt Buy
+                if (score >= currentLayerCost) {
+                    updateScore(-currentLayerCost);
+                    spawnFloatingText(0, -50, "LAYER UNLOCKED!", false);
+                    
+                    maxUnlockedLayer++;
+                    currentLayerCost *= LAYER_COST_MULTIPLIER;
+                    currentViewLayer = maxUnlockedLayer;
+                    
+                    updateButtonStates();
+                    updateSVG();
+                } else {
+                    spawnFloatingText(0, 0, "Can't afford Layer!", true);
+                }
+            } else {
+                // Just switching view
+                currentViewLayer = target;
+                updateButtonStates();
+                updateSVG(); // Redraw with new opacity rules
+            }
+        }
+
+        function updateButtonStates() {
+            // ... existing upgrades ...
+            speedBtnLabel.textContent = `Lvl ${speedLevel}`;
+            speedTooltipCost.textContent = `Cost: ${Math.floor(currentSpeedCost).toLocaleString()}`;
+            if (score >= currentSpeedCost) speedBtn.classList.remove('disabled'); else speedBtn.classList.add('disabled');
+
+            if (qualityLevel >= MAX_QUALITY_LEVEL) {
+                qualityBtnLabel.textContent = "MAX";
+                qualityBtn.classList.add('disabled');
+            } else {
+                qualityBtnLabel.textContent = `${qualityLevel}/${MAX_QUALITY_LEVEL}`;
+                qualityTooltipCost.textContent = `Cost: ${Math.floor(currentQualityCost).toLocaleString()}`;
+                if (score >= currentQualityCost) qualityBtn.classList.remove('disabled'); else qualityBtn.classList.add('disabled');
+            }
+
+            expandBtnLabel.textContent = `Lvl ${expansionLevel}`;
+            expandTooltipCost.textContent = `Cost: ${Math.floor(currentExpansionCost).toLocaleString()}`;
+            if (score >= currentExpansionCost) expandBtn.classList.remove('disabled'); else expandBtn.classList.add('disabled');
+
+            // Layer Controls
+            layerDisplay.textContent = `LAYER ${currentViewLayer}`;
+            if (currentViewLayer === 0) layerDownBtn.classList.add('disabled');
+            else layerDownBtn.classList.remove('disabled');
+
+            // Layer Up Button (acts as nav OR buy)
+            if (currentViewLayer < maxUnlockedLayer) {
+                layerUpBtn.querySelector('text').textContent = "↑";
+                layerTooltipCost.textContent = "Go to next Layer";
+                layerUpBtn.classList.remove('disabled');
+            } else {
+                // Buy mode
+                layerUpBtn.querySelector('text').textContent = "+";
+                layerTooltipCost.textContent = `Buy Layer ${maxUnlockedLayer+1}: ${currentLayerCost.toLocaleString()}`;
+                if (score >= currentLayerCost) layerUpBtn.classList.remove('disabled');
+                else layerUpBtn.classList.add('disabled');
+            }
+        }
+
+        // --- PLACEMENT LOGIC ---
+
+        function findNearestGearOnLayer(x, y, layerIndex) {
+            let nearest = null;
+            let minDist = Infinity;
+            // Only look at gears on specific layer
+            const layerGears = gears.filter(g => g.layer === layerIndex);
+            
+            for (const gear of layerGears) {
+                const dist = distance({x: gear.x, y: gear.y}, {x, y});
+                if (dist < minDist) {
+                    minDist = dist;
+                    nearest = gear;
+                }
+            }
+            return { nearest, minDist };
+        }
+
+        function calculateGearParams(N, layer) {
+            const config = getLayerParams(layer);
+            const pitchRadiusFactor = config.module / 2;
+            const addendum = config.module; // Deeper teeth
+            
+            // Fixed valley depth logic per layer? Or scaled?
+            // Let's make higher layers have deeper valleys relative to module
+            // Base Valley Depth = Module * 1.2
+            const valleyDepth = config.module * 1.2;
+
+            const R_pitch = N * pitchRadiusFactor;
+            const R_outer = R_pitch + addendum;
+            const R_base = R_pitch - valleyDepth;
+
+            if (R_base <= 0) return null;
+
+            // Cost scales with layer: Base cost * (layer+1)^2
+            const baseCost = Math.floor(Math.pow(N, 1.5));
+            const layerMult = Math.pow(layer + 1, 2);
+            const cost = baseCost * layerMult;
+
+            const hue = (qualityLevel / MAX_QUALITY_LEVEL) * MAX_HUE;
+            const mult = (1.0 + (qualityLevel * QUALITY_BONUS_PER_LEVEL)) * (layer + 1); // Layer bonus
+
+            return { N, R_pitch, R_outer, R_base, cost, hue, multiplier: mult, layer };
+        }
+
+        // --- MAIN PLACEMENT SOLVER ---
+        function solvePlacement(mouseWorldPos) {
+            // Case 1: Layer 0 (Standard 2D Mesh)
+            if (currentViewLayer === 0) {
+                const { nearest } = findNearestGearOnLayer(mouseWorldPos.x, mouseWorldPos.y, 0);
+                if (!nearest) return null; // Should have initial gear
+
+                // Logic from previous version (smart fitting)
+                const config = getLayerParams(0);
+                const pitchRadiusFactor = config.module / 2;
+                
+                const distToMouse = distance({x: nearest.x, y: nearest.y}, mouseWorldPos);
+                let ideal_R_pitch = distToMouse - nearest.R_pitch;
+                if (ideal_R_pitch < (4 * pitchRadiusFactor)) return null;
+
+                let N = Math.round(ideal_R_pitch / pitchRadiusFactor);
+                if (N > 100) N = 100;
+
+                const dx = mouseWorldPos.x - nearest.x;
+                const dy = mouseWorldPos.y - nearest.y;
+                const len = Math.sqrt(dx*dx + dy*dy);
+                const ux = dx/len, uy = dy/len;
+
+                while (N >= 4) {
+                    const params = calculateGearParams(N, 0);
+                    if (params) {
+                        const totalDist = nearest.R_pitch + params.R_pitch;
+                        const cX = nearest.x + ux * totalDist;
+                        const cY = nearest.y + uy * totalDist;
+                        
+                        const centerDist = Math.sqrt(cX*cX + cY*cY);
+                        if (centerDist + params.R_outer <= worldRadius) {
+                            // Valid Mesh on Layer 0
+                            const ratio = nearest.N / params.N;
+                            const speedFactor = nearest.speedFactor * ratio * -1;
+                            return { ...params, x: cX, y: cY, driverId: nearest.id, speedFactor };
+                        }
+                    }
+                    N--;
+                }
+                return null;
+            }
+
+            // Case 2: Layer > 0 (Stacking Logic)
+            if (currentViewLayer > 0) {
+                // Must be over a mount (Layer - 1)
+                const { nearest: mount, minDist } = findNearestGearOnLayer(mouseWorldPos.x, mouseWorldPos.y, currentViewLayer - 1);
+                
+                if (!mount) return null; // No mount found
+                
+                // Check if mouse is "inside" the mount (tolerance)
+                // If we are too far from the mount's center, don't snap
+                if (minDist > mount.R_outer) return null;
+
+                // Check if this mount is already occupied by a gear on currentLayer
+                const occupied = gears.some(g => g.layer === currentViewLayer && g.x === mount.x && g.y === mount.y);
+                if (occupied) return null; // Already has a gear on top
+
+                // Now check for neighbors on currentLayer to mesh with
+                const { nearest: peer } = findNearestGearOnLayer(mount.x, mount.y, currentViewLayer);
+
+                // If NO peer exists on this layer, this is a new "Cluster Seed"
+                // It sits on the mount and spins with the mount
+                if (!peer) {
+                    const N = 12; // Fixed start size
+                    const params = calculateGearParams(N, currentViewLayer);
+                    if (!params) return null;
+                    
+                    // Speed Factor matches Mount (Coaxial)
+                    return { ...params, x: mount.x, y: mount.y, driverId: mount.id, speedFactor: mount.speedFactor };
+                }
+
+                // If Peer DOES exist, we must mesh with it AND sit on Mount
+                // Distance is fixed (Mount Center <-> Peer Center)
+                const distToPeer = distance({x: mount.x, y: mount.y}, {x: peer.x, y: peer.y});
+                
+                // Required Pitch Radius = Distance - Peer.R_pitch
+                const required_R_pitch = distToPeer - peer.R_pitch;
+                
+                const config = getLayerParams(currentViewLayer);
+                const pitchRadiusFactor = config.module / 2;
+                
+                // Calculate Exact N needed
+                const N_exact = required_R_pitch / pitchRadiusFactor;
+                const N_rounded = Math.round(N_exact);
+                
+                // Check if N_rounded fits within tolerance (e.g. 5%)
+                // In a game, we might force it, but let's check geometry
+                const calculated_R_pitch = N_rounded * pitchRadiusFactor;
+                const error = Math.abs(calculated_R_pitch - required_R_pitch);
+                
+                if (error < 2.0 && N_rounded >= 4) {
+                    // Valid Mesh found!
+                    const params = calculateGearParams(N_rounded, currentViewLayer);
+                    if (params.R_outer + distance({x:0,y:0}, {x:mount.x, y:mount.y}) > worldRadius) return null; // Out of world bounds
+
+                    const ratio = peer.N / params.N;
+                    const speedFactor = peer.speedFactor * ratio * -1;
+                    
+                    return { ...params, x: mount.x, y: mount.y, driverId: peer.id, speedFactor };
+                } else {
+                    // Geometry mismatch - cannot bridge this specific gap with integer teeth
+                    // Optional: Render error state? For now just return null
+                    return null;
+                }
+            }
+        }
+
+        // --- HANDLERS ---
+
+        function handleMouseMove(event) {
+            if (isDragging) return;
+            const svgP = getSVGCoords(event);
+            if (svgP.y > 170) { previewGroup.style.opacity = 0; return; }
+
+            const worldP = getWorldCoords(svgP);
+            mouseDebug.textContent = `Mouse: (${worldP.x.toFixed(0)}, ${worldP.y.toFixed(0)}) | Layer: ${currentViewLayer}`;
+
+            if (gears.length === 0) { previewGroup.style.opacity = 0; return; }
+
+            const proposed = solvePlacement(worldP);
+
+            if (proposed) {
+                previewCircle.setAttribute('cx', proposed.x);
+                previewCircle.setAttribute('cy', proposed.y);
+                previewCircle.setAttribute('r', proposed.R_outer);
+                previewCenter.setAttribute('cx', proposed.x);
+                previewCenter.setAttribute('cy', proposed.y);
+                previewText.setAttribute('x', proposed.x);
+                previewText.setAttribute('y', proposed.y - proposed.R_outer - 10);
+                previewText.textContent = `${proposed.cost} pts`;
+
+                if (score >= proposed.cost) {
+                    previewCircle.classList.remove('error');
+                    previewText.style.fill = "#065f46"; 
+                } else {
+                    previewCircle.classList.add('error');
+                    previewText.style.fill = "#991b1b"; 
+                }
+                previewGroup.style.opacity = 1;
+            } else {
+                previewGroup.style.opacity = 0;
+            }
+        }
+
+        function handleClick(event) {
+            const svgP = getSVGCoords(event);
+            if (svgP.y > 170) return;
+            const worldP = getWorldCoords(svgP);
+
+            if (gears.length === 0) { initializeFirstGear(); return; }
+
+            const proposed = solvePlacement(worldP);
+            if (proposed) {
+                if (score < proposed.cost) {
+                    spawnFloatingText(proposed.x, proposed.y, "Too expensive!", true);
+                    return;
+                }
+                updateScore(-proposed.cost);
+                spawnFloatingText(proposed.x, proposed.y, `-${proposed.cost}`, true); 
+
+                gears.push({
+                    id: gears.length,
+                    rotation: 0, accumulatedRotation: 0,
+                    ...proposed // Contains x, y, N, R, layer, speedFactor, driverId
+                });
+                updateSVG();
+                previewGroup.style.opacity = 0;
+            }
+        }
+
+        // --- RENDER & INIT ---
+
+        function initializeFirstGear() {
+            const params = calculateGearParams(24, 0); // Default L0 gear
+            if (!params) return;
+            gears.push({
+                id: 0, x: 0, y: 0, ...params,
+                rotation: 0, accumulatedRotation: 0, driverId: null, speedFactor: 1.0
+            });
+            updateSVG();
+        }
+
+        function updateSVG() {
+            gearContainer.innerHTML = '';
+            
+            // Sort gears by layer so lower ones render first
+            // We can also filter: show all layers <= currentViewLayer?
+            // Actually, showing layers above might be confusing.
+            // Let's show all, but style them.
+            const renderGears = gears.slice().sort((a,b) => a.layer - b.layer);
+
+            renderGears.forEach(gear => {
+                // Visibility Check
+                if (gear.layer > currentViewLayer) return; // Hide higher layers
+
+                // Styling based on layer depth
+                let styleClass = `layer-${gear.layer}`;
+                if (gear.layer < currentViewLayer) styleClass += " layer-inactive"; // Dim lower layers
+
+                const pathData = generateGearPath(gear.N, gear.R_outer, gear.R_base, gear.layer);
+                
+                const group = document.createElementNS("http://www.w3.org/2000/svg", 'g');
+                group.setAttribute('class', `gear-group ${styleClass}`);
+                group.setAttribute('transform', `translate(${gear.x}, ${gear.y}) rotate(${gear.rotation}, 0, 0)`);
+
+                const path = document.createElementNS("http://www.w3.org/2000/svg", 'path');
+                path.setAttribute('d', pathData);
+                path.setAttribute('class', 'gear-path');
+                
+                const fillColor = getGearColor(gear.hue);
+                const strokeColor = getGearStroke(gear.hue);
+                path.style.fill = fillColor;
+                path.style.stroke = strokeColor;
+
+                const hole = document.createElementNS("http://www.w3.org/2000/svg", 'circle');
+                hole.setAttribute('class', 'gear-hole');
+                hole.setAttribute('r', (gear.R_pitch * 0.2).toFixed(2)); // Smaller hole
+
+                group.appendChild(path);
+                group.appendChild(hole);
+                gearContainer.appendChild(group);
+            });
+        }
+
+        // --- ANIMATION, UPGRADES, CAMERA (Reuse existing logic with minor tweaks) ---
+        // (Copied and adapted from previous version)
+        
+        function animateRotation() {
+            if (!isRotating || gears.length === 0) return;
+            for (const gear of gears) {
+                const delta = currentRotationSpeed * gear.speedFactor;
+                gear.accumulatedRotation += Math.abs(delta);
+                gear.rotation = (gear.rotation + delta) % 360;
+                
+                if (gear.accumulatedRotation >= 360) {
+                    gear.accumulatedRotation -= 360;
+                    // Score depends on gear layer multiplier
+                    let points = Math.pow(gear.N, 1.5) * gear.multiplier;
+                    updateScore(Math.floor(points));
+                    
+                    // Only show float text if on active layer
+                    if (gear.layer === currentViewLayer) {
+                        spawnFloatingText(gear.x, gear.y, `+${Math.floor(points)}`);
+                    }
+                }
+            }
+            // Update Visuals (Optimized: ideally strictly modify Transform strings, but updateSVG handles classes)
+            // For smoother performance, we just update transforms here manually?
+            // Re-rendering entire SVG DOM every frame is heavy.
+            // Let's stick to updateSVG logic but apply rotations directly.
+            // Actually, simplified approach:
+            // Just iterate DOM nodes.
+            // But DOM nodes are re-created in updateSVG.
+            // We only call updateSVG on layer change or build.
+            // Here we just find nodes and rotate.
+            const groups = gearContainer.children;
+            // Map logic is tricky since filtered. 
+            // Simple approach: re-render is too slow.
+            // We need persistent nodes.
+            // Due to time constraints, I'll update transforms on existing nodes assuming order matches logic?
+            // No, safest is re-render rotations or use ID lookups.
+            // Let's use updateSVG() but optimized? No, updateSVG clears innerHTML.
+            // Let's just update transforms on the fly.
+            
+            // Correct approach:
+            // Loop through visual nodes, extract ID? No ID on groups currently.
+            // Let's rely on standard idle game loop: update logical state, then render.
+            // If perf is bad, we optimize. For <100 gears, re-render might flicker.
+            // BETTER: Set IDs on groups.
+            updateGearRotations(); // New function
+            
+            animationFrameId = requestAnimationFrame(animateRotation);
+        }
+
+        function updateGearRotations() {
+            // Apply current rotation to existing DOM elements without rebuilding
+            // We need to know which group corresponds to which gear.
+            // Let's add ID to groups in updateSVG.
+            // But wait, updateSVG isn't called every frame.
+            // So we can select by ID.
+            gears.forEach(g => {
+                if (g.layer > currentViewLayer) return;
+                const el = document.getElementById(`g_${g.id}`);
+                if (el) {
+                    el.setAttribute('transform', `translate(${g.x}, ${g.y}) rotate(${g.rotation}, 0, 0)`);
+                }
+            });
+        }
+
+        // Overwrite updateSVG slightly to add IDs
+        const originalUpdateSVG = updateSVG;
+        updateSVG = function() {
+            gearContainer.innerHTML = '';
+            const renderGears = gears.slice().sort((a,b) => a.layer - b.layer);
+            renderGears.forEach(gear => {
+                if (gear.layer > currentViewLayer) return;
+                let styleClass = `layer-${gear.layer}`;
+                if (gear.layer < currentViewLayer) styleClass += " layer-inactive"; 
+
+                const pathData = generateGearPath(gear.N, gear.R_outer, gear.R_base, gear.layer);
+                const group = document.createElementNS("http://www.w3.org/2000/svg", 'g');
+                group.setAttribute('id', `g_${gear.id}`); // ADDED ID
+                group.setAttribute('class', `gear-group ${styleClass}`);
+                group.setAttribute('transform', `translate(${gear.x}, ${gear.y}) rotate(${gear.rotation}, 0, 0)`);
+
+                const path = document.createElementNS("http://www.w3.org/2000/svg", 'path');
+                path.setAttribute('d', pathData);
+                path.setAttribute('class', 'gear-path');
+                path.style.fill = getGearColor(gear.hue);
+                path.style.stroke = getGearStroke(gear.hue);
+
+                const hole = document.createElementNS("http://www.w3.org/2000/svg", 'circle');
+                hole.setAttribute('class', 'gear-hole');
+                hole.setAttribute('r', (gear.R_pitch * 0.2).toFixed(2));
+
+                group.appendChild(path);
+                group.appendChild(hole);
+                gearContainer.appendChild(group);
+            });
+        }
+
+        // --- BINDINGS ---
+        window.onload = () => {
+            initializeFirstGear(); 
+            updateButtonStates();
+            updateCamera();
+
+            svg.addEventListener('mousemove', handleMouseMove);
+            svg.addEventListener('click', handleClick);
+            speedBtn.addEventListener('click', buySpeedUpgrade);
+            qualityBtn.addEventListener('click', buyQualityUpgrade);
+            expandBtn.addEventListener('click', buyExpansionUpgrade);
+            
+            // Start animation automatically
+            isRotating = true;
+            animationFrameId = requestAnimationFrame(animateRotation);
+            
+            // Re-bind pan/zoom listeners (copied from prev, ensure scope)
+            svg.addEventListener('mousedown', (e) => {
+                if (e.button === 2) { isDragging = true; lastMouseX = e.clientX; lastMouseY = e.clientY; e.preventDefault(); }
+            });
+            window.addEventListener('mouseup', () => isDragging = false);
+            window.addEventListener('mousemove', (e) => {
+                if (isDragging) {
+                    camX += e.clientX - lastMouseX; camY += e.clientY - lastMouseY;
+                    lastMouseX = e.clientX; lastMouseY = e.clientY;
+                    updateCamera();
+                }
+            });
+            svg.addEventListener('wheel', (e) => { e.preventDefault(); adjustZoom(e.deltaY > 0 ? -0.1 : 0.1); });
+        };
+
+        function buySpeedUpgrade() {
+            if (score >= currentSpeedCost) {
+                updateScore(-currentSpeedCost);
+                speedLevel++; currentRotationSpeed += SPEED_INCREMENT; currentSpeedCost *= SPEED_COST_MULTIPLIER;
+                updateButtonStates(); spawnFloatingText(0, -50, "FASTER!", false);
+            } else spawnFloatingText(0, 0, "Too Expensive!", true);
+        }
+        function buyQualityUpgrade() {
+            if (qualityLevel >= MAX_QUALITY_LEVEL) return;
+            if (score >= currentQualityCost) {
+                updateScore(-currentQualityCost);
+                qualityLevel++; currentQualityCost *= QUALITY_COST_MULTIPLIER;
+                updateButtonStates(); spawnFloatingText(0, -50, "BETTER!", false);
+            } else spawnFloatingText(0, 0, "Too Expensive!", true);
+        }
+        function buyExpansionUpgrade() {
+            if (score >= currentExpansionCost) {
+                updateScore(-currentExpansionCost);
+                expansionLevel++; worldRadius *= EXPANSION_FACTOR;
+                worldBoundary.setAttribute('r', worldRadius.toFixed(2));
+                currentExpansionCost *= EXPANSION_COST_MULTIPLIER;
+                if (expansionLevel === 1) document.getElementById('zoomControls').style.display = "block";
+                updateButtonStates(); spawnFloatingText(0, -50, "EXPANDED!", false);
+            } else spawnFloatingText(0, 0, "Too Expensive!", true);
+        }
+        function toggleRotation() {
+            isRotating = !isRotating;
+            if (isRotating) {
+                animationFrameId = requestAnimationFrame(animateRotation);
+            } else {
+                cancelAnimationFrame(animationFrameId);
+            }
+        }
+        function updateCamera() { cameraGroup.setAttribute('transform', `translate(${camX}, ${camY}) scale(${camZoom})`); }
+        function adjustZoom(d) { camZoom+=d; if(camZoom<0.2) camZoom=0.2; updateCamera(); }
+        function resetZoom() { camX=0; camY=0; camZoom=1; updateCamera(); }
+
+    </script>
+</body>
+</html>
