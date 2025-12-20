@@ -7,17 +7,48 @@
     <!-- Load Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
+        html, body { height: 100%; overflow: hidden; }
         /* Custom styles for the SVG container */
+        :root { --header-height: 64px; }
+
         #gearSVG {
-            width: 950px; 
-            height: 500px;
-            border: 4px solid #1f2937; /* Dark border */
-            border-radius: 1rem;
-            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            width: 100%;
+            height: 100%;
+            border: none;
+            border-radius: 0;
+            box-shadow: none;
             background-color: #e5e7eb; /* Light gray background */
             cursor: crosshair;
             user-select: none;
-            overflow: hidden; 
+            overflow: hidden;
+        }
+
+        /* Layout containers */
+        .app-header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: var(--header-height);
+            background-color: #111827; /* gray-900 */
+            color: #ffffff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            letter-spacing: 0.2em;
+            z-index: 1000;
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -2px rgba(0,0,0,0.05);
+        }
+        #playArea {
+            margin-top: var(--header-height);
+            height: calc(100vh - var(--header-height));
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0; /* remove padding to allow full-width HUD */
+            overflow: hidden; /* avoid any scrollbars */
         }
         
         /* Layer specific styles */
@@ -25,8 +56,11 @@
         .layer-1 { filter: drop-shadow(0px 4px 2px rgba(0,0,0,0.3)); }
         .layer-2 { filter: drop-shadow(0px 8px 4px rgba(0,0,0,0.4)); }
         
-        /* Inactive layers (below current) look dimmed */
-        .layer-inactive { opacity: 0.4; pointer-events: none; }
+        /* Lower layers (below current) look darker */
+        .layer-below { filter: brightness(0.5); pointer-events: none; }
+        
+        /* Layer immediately above current is translucent */
+        .layer-above { opacity: 0.25; pointer-events: none; }
 
         .gear-path {
             stroke-width: 2;
@@ -137,9 +171,9 @@
         .btn-group:hover .layer-control-bg { fill: #4b5563; }
         .btn-group:active .layer-control-bg { fill: #1f2937; }
         .layer-display-text {
-            font-family: 'Inter', sans-serif;
-            font-weight: bold;
-            font-size: 16px;
+            font-family: 'Courier New', monospace; /* fixed-width for L00 */
+            font-weight: 900;
+            font-size: 48px;
             fill: #fbbf24; /* Amber 400 */
             text-anchor: middle;
             pointer-events: none;
@@ -175,36 +209,21 @@
         }
     </script>
 </head>
-<body class="bg-gray-100 min-h-screen flex items-center justify-center p-4">
+<body class="bg-gray-100 min-h-screen">
 
-    <div class="bg-white rounded-xl shadow-2xl p-6 md:p-10 w-full max-w-7xl flex flex-col lg:flex-row gap-8">
-        
-        <!-- Left Panel -->
-        <div class="w-full lg:w-1/3 space-y-6">
-            <h1 class="text-3xl font-bold text-gray-800 border-b pb-2 mb-4">Gear Factory Idle</h1>
-            
-            <div class="bg-indigo-900 text-white p-6 rounded-lg shadow-lg text-center">
-                <p class="text-sm uppercase tracking-widest text-indigo-300">Total Funds</p>
-                <p id="scoreDisplay" class="text-5xl font-mono font-bold mt-2">0</p>
-            </div>
-
-            <!-- Layer Info -->
-            <div class="p-4 bg-blue-50 border border-blue-200 rounded-lg text-sm text-gray-700">
-                <p class="font-bold text-blue-800 mb-1">Layer Mechanics:</p>
-                <ul class="list-disc list-inside space-y-1">
-                    <li>**Layer 0:** Standard gears.</li>
-                    <li>**Layer 1+:** Must be built on top of a lower gear ("The Mount").</li>
-                    <li>**Windmills:** Higher layers have deeper teeth and earn more points.</li>
-                    <li>Use the **Arrow Buttons** in the HUD to change layers.</li>
-                </ul>
-            </div>
-
-
+    <!-- Simple fixed header -->
+    <header class="app-header">
+        <div class="w-full max-w-6xl px-4 flex items-center justify-between">
+            <div>GEARS</div>
+            <nav class="text-xs">
+                <a href="./gear-designer.html" class="px-3 py-1 rounded bg-indigo-600 hover:bg-indigo-500">Designer</a>
+            </nav>
         </div>
-        
-        <!-- Right Panel: SVG Canvas -->
-        <div class="w-full lg:w-2/3 flex flex-col items-center justify-center relative">
-            <svg id="gearSVG" viewBox="-475 -250 950 500" oncontextmenu="return false;">
+    </header>
+
+    <!-- Play area fills remaining viewport -->
+    <main id="playArea" class="relative">
+        <svg id="gearSVG" viewBox="-475 -250 950 500" oncontextmenu="return false;">
                 
                 <!-- WORLD SPACE -->
                 <g id="cameraGroup">
@@ -229,19 +248,19 @@
                     
                     <!-- LAYER CONTROLS (Center Bottom) -->
                     <g id="layerControls" transform="translate(0, 210)">
-                        <text id="layerDisplay" class="layer-display-text" y="5">LAYER 0</text>
-                        
-                        <!-- Down Arrow -->
-                        <g id="layerDownBtn" class="btn-group" transform="translate(-60, -15)" onclick="changeLayer(-1)">
-                            <rect class="layer-control-bg" width="30" height="30" rx="4"></rect>
-                            <path class="btn-icon" transform="translate(8, 8)" d="M10 4L2 12h16z" transform="rotate(180 8 8)" fill="white"/>
-                            <text x="15" y="20" text-anchor="middle" fill="white" font-weight="bold" font-size="14">↓</text>
+                        <!-- Center label with fixed width monospace text -->
+                        <text id="layerDisplay" class="layer-display-text" x="0" y="-20">L00</text>
+
+                        <!-- Down Arrow (60x60 like upgrade buttons) -->
+                        <g id="layerDownBtn" class="btn-group" transform="translate(-130, -15)" onclick="changeLayer(-1)">
+                            <rect class="btn-bg" width="60" height="60" rx="8"></rect>
+                            <text x="30" y="36" text-anchor="middle" fill="white" font-weight="bold" font-size="24">↓</text>
                         </g>
 
-                        <!-- Up/Buy Arrow -->
-                        <g id="layerUpBtn" class="btn-group" transform="translate(30, -15)" onclick="changeLayer(1)">
-                            <rect class="layer-control-bg" width="30" height="30" rx="4"></rect>
-                            <text x="15" y="20" text-anchor="middle" fill="white" font-weight="bold" font-size="14">↑</text>
+                        <!-- Up/Buy Arrow (60x60 like upgrade buttons) -->
+                        <g id="layerUpBtn" class="btn-group" transform="translate(70, -15)" onclick="changeLayer(1)">
+                            <rect class="btn-bg" width="60" height="60" rx="8"></rect>
+                            <text x="30" y="36" text-anchor="middle" fill="white" font-weight="bold" font-size="24">↑</text>
                         </g>
                     </g>
 
@@ -290,11 +309,8 @@
                     </g>
 
                 </g>
-            </svg>
-            <p id="mouseDebug" class="text-sm text-gray-600 mt-2">Mouse: (0, 0) | Layer: 0</p>
-        </div>
-        
-    </div>
+        </svg>
+    </main>
 
     <script>
         // --- CONSTANTS ---
@@ -341,7 +357,7 @@
         const previewText = document.getElementById('previewText');
         const worldBoundary = document.getElementById('worldBoundary');
         
-        const mouseDebug = document.getElementById('mouseDebug');
+        
         const scoreDisplay = document.getElementById('scoreDisplay');
         const canvasScore = document.getElementById('canvasScore');
         
@@ -389,6 +405,9 @@
         let currentViewLayer = 0;
         let maxUnlockedLayer = 0;
         let currentLayerCost = INITIAL_LAYER_COST;
+        
+        // Cheat code state
+        let xKeyPressed = false;
 
         // --- UTILITY ---
         function getSVGCoords(event) {
@@ -403,12 +422,20 @@
         function distance(p1, p2) {
             return Math.sqrt(Math.pow(p1.x - p2.x, 2) + Math.pow(p1.y - p2.y, 2));
         }
+        function formatScore(value) {
+            const intScore = Math.floor(value);
+            if (intScore >= 1000000000) {
+                // Use scientific notation for values >= 1 billion
+                return intScore.toExponential(2).replace('+', '');
+            }
+            return intScore.toLocaleString();
+        }
         function updateScore(amount) {
             score += amount;
-            const scoreStr = Math.floor(score).toLocaleString();
-            scoreDisplay.textContent = scoreStr;
-            canvasScore.textContent = scoreStr; 
-            updateButtonStates(); 
+            const scoreStr = formatScore(score);
+            if (scoreDisplay) { scoreDisplay.textContent = scoreStr; }
+            canvasScore.textContent = scoreStr;
+            updateButtonStates();
         }
         function spawnFloatingText(x, y, text, isCost = false) {
             const textEl = document.createElementNS("http://www.w3.org/2000/svg", 'text');
@@ -462,6 +489,24 @@
             path.push('Z');
             return path.join(' ');
         }
+        
+        function generateCutoutWindows(layer, R_pitch) {
+            // Higher layers get more cutout windows for visibility
+            if (layer === 0) return [];
+            
+            const numWindows = Math.min(layer * 3, 12); // 3, 6, 9, 12 windows
+            const windowRadius = R_pitch * 0.15; // Size of each window
+            const windowDistance = R_pitch * 0.6; // Distance from center
+            
+            const windows = [];
+            for (let i = 0; i < numWindows; i++) {
+                const angle = (i / numWindows) * 2 * Math.PI;
+                const cx = (windowDistance * Math.cos(angle)).toFixed(2);
+                const cy = (windowDistance * Math.sin(angle)).toFixed(2);
+                windows.push({ cx, cy, r: windowRadius.toFixed(2) });
+            }
+            return windows;
+        }
 
         // --- LAYER LOGIC ---
 
@@ -513,7 +558,8 @@
             if (score >= currentExpansionCost) expandBtn.classList.remove('disabled'); else expandBtn.classList.add('disabled');
 
             // Layer Controls
-            layerDisplay.textContent = `LAYER ${currentViewLayer}`;
+            // Monospace layer label like L01
+            layerDisplay.textContent = `L${String(currentViewLayer).padStart(2, '0')}`;
             if (currentViewLayer === 0) layerDownBtn.classList.add('disabled');
             else layerDownBtn.classList.remove('disabled');
 
@@ -592,7 +638,6 @@
                 if (ideal_R_pitch < (4 * pitchRadiusFactor)) return null;
 
                 let N = Math.round(ideal_R_pitch / pitchRadiusFactor);
-                if (N > 100) N = 100;
 
                 const dx = mouseWorldPos.x - nearest.x;
                 const dy = mouseWorldPos.y - nearest.y;
@@ -692,7 +737,6 @@
             if (svgP.y > 170) { previewGroup.style.opacity = 0; return; }
 
             const worldP = getWorldCoords(svgP);
-            mouseDebug.textContent = `Mouse: (${worldP.x.toFixed(0)}, ${worldP.y.toFixed(0)}) | Layer: ${currentViewLayer}`;
 
             if (gears.length === 0) { previewGroup.style.opacity = 0; return; }
 
@@ -872,13 +916,19 @@
             gearContainer.innerHTML = '';
             const renderGears = gears.slice().sort((a,b) => a.layer - b.layer);
             renderGears.forEach(gear => {
-                if (gear.layer > currentViewLayer) return;
+                // Show current layer, layers below (darker), and one layer above (translucent)
+                if (gear.layer > currentViewLayer + 1) return; // Hide layers 2+ above
+                
                 let styleClass = `layer-${gear.layer}`;
-                if (gear.layer < currentViewLayer) styleClass += " layer-inactive"; 
+                if (gear.layer < currentViewLayer) {
+                    styleClass += " layer-below"; // Darker
+                } else if (gear.layer > currentViewLayer) {
+                    styleClass += " layer-above"; // Translucent
+                }
 
                 const pathData = generateGearPath(gear.N, gear.R_outer, gear.R_base, gear.layer);
                 const group = document.createElementNS("http://www.w3.org/2000/svg", 'g');
-                group.setAttribute('id', `g_${gear.id}`); // ADDED ID
+                group.setAttribute('id', `g_${gear.id}`);
                 group.setAttribute('class', `gear-group ${styleClass}`);
                 group.setAttribute('transform', `translate(${gear.x}, ${gear.y}) rotate(${gear.rotation}, 0, 0)`);
 
@@ -888,12 +938,27 @@
                 path.style.fill = getGearColor(gear.hue);
                 path.style.stroke = getGearStroke(gear.hue);
 
+                group.appendChild(path);
+                
+                // Add cutout windows for higher layers
+                const windows = generateCutoutWindows(gear.layer, gear.R_pitch);
+                windows.forEach(window => {
+                    const cutout = document.createElementNS("http://www.w3.org/2000/svg", 'circle');
+                    cutout.setAttribute('cx', window.cx);
+                    cutout.setAttribute('cy', window.cy);
+                    cutout.setAttribute('r', window.r);
+                    cutout.style.fill = '#e5e7eb'; // Match background
+                    cutout.style.stroke = getGearStroke(gear.hue);
+                    cutout.style.strokeWidth = '1.5';
+                    group.appendChild(cutout);
+                });
+                
+                // Center hole
                 const hole = document.createElementNS("http://www.w3.org/2000/svg", 'circle');
                 hole.setAttribute('class', 'gear-hole');
                 hole.setAttribute('r', (gear.R_pitch * 0.2).toFixed(2));
-
-                group.appendChild(path);
                 group.appendChild(hole);
+
                 gearContainer.appendChild(group);
             });
         }
@@ -927,6 +992,21 @@
                 }
             });
             svg.addEventListener('wheel', (e) => { e.preventDefault(); adjustZoom(e.deltaY > 0 ? -0.1 : 0.1); });
+            
+            // Cheat code: Press 'x' to multiply funds by 10
+            window.addEventListener('keydown', (e) => {
+                if (e.key.toLowerCase() === 'x' && !xKeyPressed) {
+                    xKeyPressed = true;
+                    const bonus = score * 9; // Multiply by 10 = add 9x current
+                    updateScore(bonus);
+                    spawnFloatingText(0, 0, `CHEAT: +${Math.floor(bonus).toLocaleString()}`, false);
+                }
+            });
+            window.addEventListener('keyup', (e) => {
+                if (e.key.toLowerCase() === 'x') {
+                    xKeyPressed = false;
+                }
+            });
         };
 
         function buySpeedUpgrade() {

@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Gear Designer</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    html, body { height: 100%; }
+    :root { --sidebar-width: 360px; --header-height: 64px; }
+    .canvas { background: #e5e7eb; }
+    .section h3 { letter-spacing: .06em; }
+    .value-pill { min-width: 3rem; text-align: right; }
+    .range { width: 100%; }
+    .code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+    /* prevent text selection while dragging ranges quickly */
+    * { user-select: none; }
+  </style>
+  <script>
+    tailwind.config = {
+      theme: { extend: { fontFamily: { sans: ['Inter','ui-sans-serif','system-ui','Segoe UI','Roboto','Helvetica','Arial','Noto Sans','Apple Color Emoji','Segoe UI Emoji'] } } }
+    }
+  </script>
+</head>
+<body class="min-h-screen bg-gray-100 text-gray-900">
+  <header class="h-16 flex items-center justify-between px-4 md:px-6 bg-gray-900 text-white shadow">
+    <div class="font-extrabold tracking-widest">GEAR DESIGNER</div>
+    <nav class="flex items-center gap-3 text-sm">
+      <a class="px-3 py-1 rounded bg-indigo-600 hover:bg-indigo-500" href="./gears.html">Play</a>
+      <a class="px-3 py-1 rounded bg-gray-700 hover:bg-gray-600" href="#" id="btnReset">Reset</a>
+    </nav>
+  </header>
+
+  <main class="grid" style="grid-template-columns: minmax(280px, var(--sidebar-width)) 1fr; min-height: calc(100vh - var(--header-height));">
+    <!-- Controls -->
+    <aside class="border-r border-gray-200 bg-white overflow-auto" id="panel">
+      <div class="p-4 space-y-6">
+        <!-- Geometry -->
+        <section class="section">
+          <h3 class="text-xs font-bold text-gray-500 mb-3">GEAR GEOMETRY</h3>
+
+          <div class="mb-4">
+            <label class="text-sm font-medium flex items-center justify-between">Teeth <span class="value-pill text-gray-700" id="vTeeth">24</span></label>
+            <input id="teeth" type="range" min="4" max="180" step="1" value="24" class="range" />
+          </div>
+
+          <div class="mb-4">
+            <label class="text-sm font-medium flex items-center justify-between">Module <span class="value-pill" id="vModule">8</span></label>
+            <input id="module" type="range" min="2" max="20" step="0.5" value="8" class="range" />
+          </div>
+
+          <div class="mb-4">
+            <label class="text-sm font-medium flex items-center justify-between">Tooth Width Ratio <span class="value-pill" id="vTWR">0.40</span></label>
+            <input id="toothWidthRatio" type="range" min="0.15" max="0.7" step="0.01" value="0.40" class="range" />
+          </div>
+
+          <div class="mb-4">
+            <label class="text-sm font-medium flex items-center justify-between">Addendum (tip height) <span class="value-pill" id="vAdd">8</span></label>
+            <input id="addendum" type="range" min="1" max="24" step="0.5" value="8" class="range" />
+          </div>
+
+          <div>
+            <label class="text-sm font-medium flex items-center justify-between">Valley Depth <span class="value-pill" id="vValley">9.6</span></label>
+            <input id="valleyDepth" type="range" min="1" max="30" step="0.5" value="9.6" class="range" />
+          </div>
+        </section>
+
+        <!-- Hub & Hole -->
+        <section class="section">
+          <h3 class="text-xs font-bold text-gray-500 mb-3">HUB & HOLE</h3>
+          <div class="grid grid-cols-2 gap-3 mb-3">
+            <div>
+              <label class="text-xs uppercase tracking-wide text-gray-500">Hub Shape</label>
+              <select id="hubShape" class="w-full mt-1 rounded border-gray-300"> 
+                <option value="circle">Circle</option>
+                <option value="rounded-square">Rounded Square</option>
+                <option value="square">Square</option>
+                <option value="hexagon">Hexagon</option>
+              </select>
+            </div>
+            <div>
+              <label class="text-xs uppercase tracking-wide text-gray-500">Hole Shape</label>
+              <select id="holeShape" class="w-full mt-1 rounded border-gray-300"> 
+                <option value="circle">Circle</option>
+                <option value="square">Square</option>
+                <option value="rounded-square">Rounded Square</option>
+                <option value="hexagon">Hexagon</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label class="text-sm font-medium flex items-center justify-between">Hub Radius <span class="value-pill" id="vHub">60</span></label>
+            <input id="hubRadius" type="range" min="0" max="200" step="1" value="60" class="range" />
+          </div>
+
+          <div>
+            <label class="text-sm font-medium flex items-center justify-between">Hole Radius <span class="value-pill" id="vHole">20</span></label>
+            <input id="holeRadius" type="range" min="0" max="120" step="1" value="20" class="range" />
+          </div>
+        </section>
+
+        <!-- Cutouts -->
+        <section class="section">
+          <h3 class="text-xs font-bold text-gray-500 mb-3">CUTOUTS</h3>
+          <div class="grid grid-cols-2 gap-3 mb-3">
+            <div>
+              <label class="text-xs uppercase tracking-wide text-gray-500">Style</label>
+              <select id="cutoutStyle" class="w-full mt-1 rounded border-gray-300"> 
+                <option value="none">None</option>
+                <option value="radial-circles">Radial Circles</option>
+                <option value="radial-squares">Radial Squares</option>
+                <option value="spokes">Spokes</option>
+                <option value="star">Star</option>
+              </select>
+            </div>
+            <div>
+              <label class="text-xs uppercase tracking-wide text-gray-500">Count</label>
+              <input id="cutoutCount" type="range" min="0" max="24" step="1" value="8" class="range mt-2" />
+              <div class="text-right text-xs text-gray-600" id="vCutoutCount">8</div>
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label class="text-sm font-medium flex items-center justify-between">Cutout Size <span class="value-pill" id="vCutoutSize">16</span></label>
+            <input id="cutoutSize" type="range" min="2" max="80" step="1" value="16" class="range" />
+          </div>
+
+          <div>
+            <label class="text-sm font-medium flex items-center justify-between">Cutout Ring (ratio) <span class="value-pill" id="vCutoutRing">0.60</span></label>
+            <input id="cutoutRingRatio" type="range" min="0.2" max="0.9" step="0.01" value="0.60" class="range" />
+          </div>
+        </section>
+
+        <!-- Visuals -->
+        <section class="section">
+          <h3 class="text-xs font-bold text-gray-500 mb-3">VISUALS</h3>
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="text-xs uppercase tracking-wide text-gray-500">Hue</label>
+              <input id="hue" type="range" min="0" max="360" step="1" value="200" class="range mt-2" />
+              <div class="text-right text-xs text-gray-600" id="vHue">200</div>
+            </div>
+            <div>
+              <label class="text-xs uppercase tracking-wide text-gray-500">Stroke</label>
+              <input id="stroke" type="color" value="#1f2937" class="w-full h-9 mt-1 rounded border border-gray-300" />
+            </div>
+          </div>
+        </section>
+
+        <!-- Export -->
+        <section class="section">
+          <h3 class="text-xs font-bold text-gray-500 mb-3">EXPORT</h3>
+          <div class="flex gap-2">
+            <button id="btnCopyPath" class="px-3 py-2 rounded bg-gray-800 text-white text-sm hover:bg-gray-700">Copy SVG Path</button>
+            <button id="btnDownloadSVG" class="px-3 py-2 rounded bg-indigo-600 text-white text-sm hover:bg-indigo-500">Download SVG</button>
+            <button id="btnRandom" class="px-3 py-2 rounded bg-amber-500 text-white text-sm hover:bg-amber-400">Random</button>
+          </div>
+          <p class="text-xs text-gray-500 mt-2">Path data and a minimal standalone SVG are generated from your current settings.</p>
+        </section>
+      </div>
+    </aside>
+
+    <!-- Preview -->
+    <section class="relative">
+      <svg id="svg" class="canvas w-full h-full" viewBox="-320 -320 640 640" aria-label="Gear Preview" oncontextmenu="return false">
+        <defs>
+          <filter id="shadow" x="-50%" y="-50%" width="200%" height="200%">
+            <feDropShadow dx="0" dy="4" stdDeviation="4" flood-color="#000" flood-opacity="0.25"/>
+          </filter>
+          <!-- Light grid pattern -->
+          <pattern id="gridPattern" patternUnits="userSpaceOnUse" width="40" height="40">
+            <rect width="40" height="40" fill="#f3f4f6" />
+            <path d="M 40 0 L 0 0 0 40" stroke="#d1d5db" stroke-width="1" />
+          </pattern>
+          <!-- Dynamic mask to punch transparent holes -->
+          <mask id="gearMask" maskUnits="userSpaceOnUse" x="-320" y="-320" width="640" height="640">
+            <g id="maskRoot"></g>
+          </mask>
+        </defs>
+        <!-- Background grid -->
+        <rect x="-320" y="-320" width="640" height="640" fill="url(#gridPattern)" />
+        <g id="gearGroup" filter="url(#shadow)" mask="url(#gearMask)">
+          <path id="gearPath" d="" fill="#60a5fa" stroke="#1f2937" stroke-width="2" />
+          <!-- Hub -->
+          <g id="hubGroup"></g>
+        </g>
+      </svg>
+
+      <!-- Tiny legend -->
+      <div class="absolute bottom-3 right-3 bg-white/80 backdrop-blur px-3 py-2 rounded shadow text-xs code">
+        <div><span class="text-gray-500">Pitch R:</span> <span id="dbgPitch">-</span></div>
+        <div><span class="text-gray-500">Outer R:</span> <span id="dbgOuter">-</span></div>
+        <div><span class="text-gray-500">Base R:</span> <span id="dbgBase">-</span></div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    // State
+    const S = {
+      teeth: 24,
+      module: 8,
+      toothWidthRatio: 0.40,
+      addendum: 8,
+      valleyDepth: 9.6,
+      hubShape: 'circle',
+      holeShape: 'circle',
+      hubRadius: 60,
+      holeRadius: 20,
+      cutoutStyle: 'none',
+      cutoutCount: 8,
+      cutoutSize: 16,
+      cutoutRingRatio: 0.60,
+      hue: 200,
+      stroke: '#1f2937',
+      rotation: 0
+    };
+
+    // DOM
+    const svg = document.getElementById('svg');
+    const gearPath = document.getElementById('gearPath');
+    const gearGroup = document.getElementById('gearGroup');
+    const hubGroup = document.getElementById('hubGroup');
+    const maskRoot = document.getElementById('maskRoot');
+
+    const vTeeth = document.getElementById('vTeeth');
+    const vModule = document.getElementById('vModule');
+    const vTWR = document.getElementById('vTWR');
+    const vAdd = document.getElementById('vAdd');
+    const vValley = document.getElementById('vValley');
+    const vHub = document.getElementById('vHub');
+    const vHole = document.getElementById('vHole');
+    const vCutoutRing = document.getElementById('vCutoutRing');
+    const vCutoutCount = document.getElementById('vCutoutCount');
+    const vCutoutSize = document.getElementById('vCutoutSize');
+    const vHue = document.getElementById('vHue');
+    const dbgPitch = document.getElementById('dbgPitch');
+    const dbgOuter = document.getElementById('dbgOuter');
+    const dbgBase = document.getElementById('dbgBase');
+
+    // Inputs
+    const inputs = {
+      teeth: document.getElementById('teeth'),
+      module: document.getElementById('module'),
+      toothWidthRatio: document.getElementById('toothWidthRatio'),
+      addendum: document.getElementById('addendum'),
+      valleyDepth: document.getElementById('valleyDepth'),
+      hubShape: document.getElementById('hubShape'),
+      holeShape: document.getElementById('holeShape'),
+      hubRadius: document.getElementById('hubRadius'),
+      holeRadius: document.getElementById('holeRadius'),
+      cutoutStyle: document.getElementById('cutoutStyle'),
+      cutoutCount: document.getElementById('cutoutCount'),
+      cutoutSize: document.getElementById('cutoutSize'),
+      cutoutRingRatio: document.getElementById('cutoutRingRatio'),
+      hue: document.getElementById('hue'),
+      stroke: document.getElementById('stroke')
+    };
+
+    const buttons = {
+      copyPath: document.getElementById('btnCopyPath'),
+      downloadSVG: document.getElementById('btnDownloadSVG'),
+      random: document.getElementById('btnRandom'),
+      reset: document.getElementById('btnReset')
+    };
+
+    function getGearColor(h) { return `hsl(${h}, 80%, 55%)`; }
+
+    function generateGearPath(N, R_outer, R_base, toothWidthRatio) {
+      const totalAnglePerTooth = (2 * Math.PI) / N;
+      const toothAngle = totalAnglePerTooth * toothWidthRatio;
+      const spaceAngle = totalAnglePerTooth - toothAngle;
+      const path = [];
+      function pt(r, a) { return [ (r * Math.cos(a)).toFixed(2), (r * Math.sin(a)).toFixed(2) ]; }
+      for (let i=0;i<N;i++) {
+        const start = i * totalAnglePerTooth;
+        const [x1,y1] = pt(R_base, start);
+        const [x2,y2] = pt(R_outer, start + spaceAngle/2);
+        const [x3,y3] = pt(R_outer, start + spaceAngle/2 + toothAngle);
+        const [x4,y4] = pt(R_base, start + totalAnglePerTooth - spaceAngle/2);
+        if (i===0) path.push(`M ${x1} ${y1}`); else path.push(`A ${R_base} ${R_base} 0 0 0 ${x1} ${y1}`);
+        path.push(`L ${x2} ${y2}`);
+        path.push(`L ${x3} ${y3}`);
+        path.push(`L ${x4} ${y4}`);
+      }
+      path.push('Z');
+      return path.join(' ');
+    }
+
+    function buildShapeElement(kind, size, opts={}) {
+      const ns = 'http://www.w3.org/2000/svg';
+      if (kind === 'circle') {
+        const c = document.createElementNS(ns, 'circle');
+        c.setAttribute('r', size);
+        return c;
+      }
+      if (kind === 'square' || kind === 'rounded-square') {
+        const s = document.createElementNS(ns, 'rect');
+        const side = size * 2;
+        s.setAttribute('x', (-side/2).toFixed(2));
+        s.setAttribute('y', (-side/2).toFixed(2));
+        s.setAttribute('width', side.toFixed(2));
+        s.setAttribute('height', side.toFixed(2));
+        if (kind === 'rounded-square') s.setAttribute('rx', Math.max(2, size*0.25).toFixed(2));
+        return s;
+      }
+      if (kind === 'hexagon') {
+        const p = document.createElementNS(ns, 'polygon');
+        const pts = [];
+        for (let i=0;i<6;i++) {
+          const a = (i/6)*Math.PI*2 + Math.PI/6; // flat-top hex
+          const x = (size * Math.cos(a)).toFixed(2);
+          const y = (size * Math.sin(a)).toFixed(2);
+          pts.push(`${x},${y}`);
+        }
+        p.setAttribute('points', pts.join(' '));
+        return p;
+      }
+      return document.createElementNS('http://www.w3.org/2000/svg', 'g');
+    }
+
+    function drawCutoutsToMask(style, count, size, ringR) {
+      const ns = 'http://www.w3.org/2000/svg';
+      if (style === 'none' || count === 0 || size <= 0) return;
+
+      if (style === 'star') {
+        const p = document.createElementNS(ns, 'polygon');
+        const pts = [];
+        const spikes = Math.max(5, count);
+        const outer = ringR + size*0.75;
+        const inner = Math.max(10, ringR - size*0.5);
+        const step = Math.PI / spikes;
+        for (let i=0;i<spikes*2;i++) {
+          const r = (i % 2 === 0) ? outer : inner;
+          const a = i * step;
+          const x = (r * Math.cos(a)).toFixed(2);
+          const y = (r * Math.sin(a)).toFixed(2);
+          pts.push(`${x},${y}`);
+        }
+        p.setAttribute('points', pts.join(' '));
+        p.setAttribute('fill', 'black');
+        maskRoot.appendChild(p);
+        return;
+      }
+
+      if (style === 'spokes') {
+        const innerR = Math.max(0, S.hubRadius * 1.05);
+        const outerR = Math.max(innerR + 10, ringR);
+        const gapDeg = Math.max(6, Math.min(50, 70 - count*2));
+        for (let i=0;i<count;i++) {
+          const theta = (i / count) * Math.PI * 2;
+          const half = (gapDeg * Math.PI/180)/2;
+          const a1 = theta - half;
+          const a2 = theta + half;
+          const path = document.createElementNS(ns, 'path');
+          const p1x = (innerR*Math.cos(a1)).toFixed(2), p1y=(innerR*Math.sin(a1)).toFixed(2);
+          const p2x = (outerR*Math.cos(a1)).toFixed(2), p2y=(outerR*Math.sin(a1)).toFixed(2);
+          const p3x = (outerR*Math.cos(a2)).toFixed(2), p3y=(outerR*Math.sin(a2)).toFixed(2);
+          const p4x = (innerR*Math.cos(a2)).toFixed(2), p4y=(innerR*Math.sin(a2)).toFixed(2);
+          const d = [
+            `M ${p1x} ${p1y}`,
+            `L ${p2x} ${p2y}`,
+            `A ${outerR} ${outerR} 0 0 1 ${p3x} ${p3y}`,
+            `L ${p4x} ${p4y}`,
+            `A ${innerR} ${innerR} 0 0 0 ${p1x} ${p1y}`,
+            'Z'
+          ].join(' ');
+          path.setAttribute('d', d);
+          path.setAttribute('fill', 'black');
+          maskRoot.appendChild(path);
+        }
+        return;
+      }
+
+      // Radial shapes
+      for (let i=0;i<count;i++) {
+        const a = (i / count) * Math.PI * 2;
+        const cx = ringR * Math.cos(a);
+        const cy = ringR * Math.sin(a);
+        let el;
+        if (style === 'radial-circles') {
+          el = document.createElementNS(ns, 'circle');
+          el.setAttribute('r', size);
+        } else if (style === 'radial-squares') {
+          el = document.createElementNS(ns, 'rect');
+          el.setAttribute('x', (-size).toFixed(2));
+          el.setAttribute('y', (-size).toFixed(2));
+          el.setAttribute('width', (size*2).toFixed(2));
+          el.setAttribute('height', (size*2).toFixed(2));
+          el.setAttribute('rx', (size*0.25).toFixed(2));
+        }
+        if (!el) continue;
+        el.setAttribute('transform', `translate(${cx.toFixed(2)}, ${cy.toFixed(2)}) rotate(${(a*180/Math.PI).toFixed(2)})`);
+        el.setAttribute('fill', 'black');
+        maskRoot.appendChild(el);
+      }
+    }
+
+    const R_FIXED = 240; // fixed outer radius for preview
+    function update() {
+      // Derived radii
+      const N = S.teeth;
+      const R_pitch_raw = N * (S.module/2);
+      const R_outer_raw = R_pitch_raw + S.addendum;
+      const R_base_raw = Math.max(1, R_pitch_raw - S.valleyDepth);
+      const scale = R_FIXED / Math.max(1, R_outer_raw);
+      const R_pitch = R_pitch_raw * scale;
+      const R_outer = R_FIXED;
+      const R_base = Math.max(1, R_base_raw * scale);
+
+      gearPath.setAttribute('d', generateGearPath(N, R_outer, R_base, S.toothWidthRatio));
+      gearPath.setAttribute('fill', getGearColor(S.hue));
+      gearPath.setAttribute('stroke', S.stroke);
+
+      // Hub rendering
+      hubGroup.innerHTML = '';
+      const hub = buildShapeElement(S.hubShape, S.hubRadius);
+      hub.setAttribute('fill', `hsl(${S.hue}, 50%, 40%)`);
+      hub.setAttribute('stroke', S.stroke);
+      hub.setAttribute('stroke-width', '1.5');
+      hubGroup.appendChild(hub);
+
+      // Build mask (true holes)
+      maskRoot.innerHTML = '';
+      const ns = 'http://www.w3.org/2000/svg';
+      const mRect = document.createElementNS(ns, 'rect');
+      mRect.setAttribute('x', '-320'); mRect.setAttribute('y', '-320'); mRect.setAttribute('width', '640'); mRect.setAttribute('height', '640');
+      mRect.setAttribute('fill', 'black'); maskRoot.appendChild(mRect);
+      const mPath = document.createElementNS(ns, 'path');
+      mPath.setAttribute('d', gearPath.getAttribute('d'));
+      mPath.setAttribute('fill', 'white'); maskRoot.appendChild(mPath);
+      const mHub = buildShapeElement(S.hubShape, S.hubRadius);
+      mHub.setAttribute('fill', 'white'); maskRoot.appendChild(mHub);
+      if (S.holeRadius > 0) {
+        const mHole = buildShapeElement(S.holeShape, Math.min(S.holeRadius, S.hubRadius-2));
+        mHole.setAttribute('fill', 'black'); maskRoot.appendChild(mHole);
+      }
+
+      // Cutouts
+      const ringR = R_pitch * S.cutoutRingRatio;
+      drawCutoutsToMask(S.cutoutStyle, S.cutoutCount, S.cutoutSize, ringR);
+
+      // Apply rotation (drag)
+      gearGroup.setAttribute('transform', `rotate(${S.rotation})`);
+
+      // Debug
+      dbgPitch.textContent = R_pitch.toFixed(1);
+      dbgOuter.textContent = R_outer.toFixed(1);
+      dbgBase.textContent = R_base.toFixed(1);
+
+      // Update UI echo
+      vTeeth.textContent = S.teeth;
+      vModule.textContent = S.module;
+      vTWR.textContent = S.toothWidthRatio.toFixed(2);
+      vAdd.textContent = S.addendum;
+      vValley.textContent = S.valleyDepth;
+      vHub.textContent = S.hubRadius;
+      vHole.textContent = S.holeRadius;
+      vCutoutRing.textContent = S.cutoutRingRatio.toFixed(2);
+      vCutoutCount.textContent = S.cutoutCount;
+      vCutoutSize.textContent = S.cutoutSize;
+      vHue.textContent = S.hue;
+    }
+
+    // Bind changes
+    Object.entries(inputs).forEach(([k, el]) => {
+      const handler = () => {
+        let v = el.value;
+        if (['hubShape','holeShape','cutoutStyle'].includes(k)) {
+          S[k] = v;
+        } else if (k === 'stroke') {
+          S.stroke = v;
+        } else if (k === 'toothWidthRatio' || k === 'cutoutRingRatio') {
+          S[k] = parseFloat(v);
+        } else if (k === 'module' || k === 'addendum' || k === 'valleyDepth') {
+          S[k] = parseFloat(v);
+        } else if (k === 'hue') {
+          S.hue = parseInt(v, 10);
+        } else {
+          S[k] = parseInt(v, 10);
+        }
+        update();
+      };
+      el.addEventListener('input', handler);
+      el.addEventListener('change', handler);
+    });
+
+    // Auto-rotate (no manual rotation)
+    const ROT_DEG_PER_SEC = 15;
+    let lastTS = null;
+    function animate(ts) {
+      if (lastTS === null) { lastTS = ts; }
+      const dt = (ts - lastTS) / 1000;
+      lastTS = ts;
+      S.rotation = (S.rotation + ROT_DEG_PER_SEC * dt) % 360;
+      gearGroup.setAttribute('transform', `rotate(${S.rotation})`);
+      requestAnimationFrame(animate);
+    }
+
+    // Buttons
+    buttons.copyPath.addEventListener('click', () => {
+      const d = gearPath.getAttribute('d');
+      navigator.clipboard.writeText(d).then(()=>{
+        buttons.copyPath.textContent = 'Copied!';
+        setTimeout(()=> buttons.copyPath.textContent = 'Copy SVG Path', 800);
+      });
+    });
+
+    buttons.downloadSVG.addEventListener('click', () => {
+      const N = S.teeth;
+      const R_pitch_raw = N * (S.module/2);
+      const R_outer_raw = R_pitch_raw + S.addendum;
+      const R_base_raw = Math.max(1, R_pitch_raw - S.valleyDepth);
+      const scale = R_FIXED / Math.max(1, R_outer_raw);
+      const R_pitch = R_pitch_raw * scale;
+      const R_outer = R_FIXED;
+      const R_base = Math.max(1, R_base_raw * scale);
+      const dPath = generateGearPath(N, R_outer, R_base, S.toothWidthRatio);
+      const ringR = R_pitch * S.cutoutRingRatio;
+
+      let maskContent = '';
+      maskContent += `<rect x=\"-320\" y=\"-320\" width=\"640\" height=\"640\" fill=\"black\"/>`;
+      maskContent += `<path d=\"${dPath}\" fill=\"white\"/>`;
+      // hub
+      if (S.hubShape === 'circle') maskContent += `<circle r=\"${S.hubRadius}\" fill=\"white\"/>`;
+      else if (S.hubShape === 'square' || S.hubShape === 'rounded-square') {
+        const side = S.hubRadius*2; const rx = (S.hubShape==='rounded-square')? Math.max(2, S.hubRadius*0.25):0;
+        maskContent += `<rect x=\"${(-side/2).toFixed(2)}\" y=\"${(-side/2).toFixed(2)}\" width=\"${side.toFixed(2)}\" height=\"${side.toFixed(2)}\" ${rx?`rx=\"${rx.toFixed(2)}\"`:''} fill=\"white\"/>`;
+      } else if (S.hubShape === 'hexagon') {
+        const pts=[]; for(let i=0;i<6;i++){const a=(i/6)*Math.PI*2+Math.PI/6; pts.push(`${(S.hubRadius*Math.cos(a)).toFixed(2)},${(S.hubRadius*Math.sin(a)).toFixed(2)}`);} 
+        maskContent += `<polygon points=\"${pts.join(' ')}\" fill=\"white\"/>`;
+      }
+      // hole
+      const holeR = Math.min(S.holeRadius, Math.max(0, S.hubRadius-2));
+      if (holeR > 0) {
+        if (S.holeShape === 'circle') maskContent += `<circle r=\"${holeR}\" fill=\"black\"/>`;
+        else if (S.holeShape === 'square' || S.holeShape === 'rounded-square') {
+          const side = holeR*2; const rx = (S.holeShape==='rounded-square')? Math.max(2, holeR*0.25):0;
+          maskContent += `<rect x=\"${(-side/2).toFixed(2)}\" y=\"${(-side/2).toFixed(2)}\" width=\"${side.toFixed(2)}\" height=\"${side.toFixed(2)}\" ${rx?`rx=\"${rx.toFixed(2)}\"`:''} fill=\"black\"/>`;
+        } else if (S.holeShape === 'hexagon') {
+          const pts=[]; for(let i=0;i<6;i++){const a=(i/6)*Math.PI*2+Math.PI/6; pts.push(`${(holeR*Math.cos(a)).toFixed(2)},${(holeR*Math.sin(a)).toFixed(2)}`);} 
+          maskContent += `<polygon points=\"${pts.join(' ')}\" fill=\"black\"/>`;
+        }
+      }
+      // cutouts
+      if (S.cutoutStyle !== 'none' && S.cutoutCount > 0 && S.cutoutSize > 0) {
+        if (S.cutoutStyle === 'star') {
+          const pts=[]; const spikes=Math.max(5,S.cutoutCount); const outer=ringR+S.cutoutSize*0.75; const inner=Math.max(10, ringR-S.cutoutSize*0.5); const step=Math.PI/spikes;
+          for(let i=0;i<spikes*2;i++){const r=(i%2===0)?outer:inner; const a=i*step; pts.push(`${(r*Math.cos(a)).toFixed(2)},${(r*Math.sin(a)).toFixed(2)}`);} 
+          maskContent += `<polygon points=\"${pts.join(' ')}\" fill=\"black\"/>`;
+        } else if (S.cutoutStyle === 'spokes') {
+          const innerR = Math.max(0, S.hubRadius * 1.05);
+          const outerR = Math.max(innerR + 10, ringR);
+          const gapDeg = Math.max(6, Math.min(50, 70 - S.cutoutCount*2));
+          for (let i=0;i<S.cutoutCount;i++) {
+            const theta=(i/S.cutoutCount)*Math.PI*2; const half=(gapDeg*Math.PI/180)/2; const a1=theta-half; const a2=theta+half;
+            const p1x=(innerR*Math.cos(a1)).toFixed(2), p1y=(innerR*Math.sin(a1)).toFixed(2);
+            const p2x=(outerR*Math.cos(a1)).toFixed(2), p2y=(outerR*Math.sin(a1)).toFixed(2);
+            const p3x=(outerR*Math.cos(a2)).toFixed(2), p3y=(outerR*Math.sin(a2)).toFixed(2);
+            const p4x=(innerR*Math.cos(a2)).toFixed(2), p4y=(innerR*Math.sin(a2)).toFixed(2);
+            const d=[`M ${p1x} ${p1y}`,`L ${p2x} ${p2y}`,`A ${outerR} ${outerR} 0 0 1 ${p3x} ${p3y}`,`L ${p4x} ${p4y}`,`A ${innerR} ${innerR} 0 0 0 ${p1x} ${p1y}`,'Z'].join(' ');
+            maskContent += `<path d=\"${d}\" fill=\"black\"/>`;
+          }
+        } else {
+          for (let i=0;i<S.cutoutCount;i++) {
+            const a=(i/S.cutoutCount)*Math.PI*2; const cx=ringR*Math.cos(a); const cy=ringR*Math.sin(a);
+            if (S.cutoutStyle === 'radial-circles') {
+              maskContent += `<circle r=\"${S.cutoutSize}\" fill=\"black\" transform=\"translate(${cx.toFixed(2)}, ${cy.toFixed(2)})\"/>`;
+            } else if (S.cutoutStyle === 'radial-squares') {
+              const s=S.cutoutSize*2; const rx=(S.cutoutSize*0.25).toFixed(2);
+              maskContent += `<rect x=\"${(-S.cutoutSize).toFixed(2)}\" y=\"${(-S.cutoutSize).toFixed(2)}\" width=\"${s.toFixed(2)}\" height=\"${s.toFixed(2)}\" rx=\"${rx}\" fill=\"black\" transform=\"translate(${cx.toFixed(2)}, ${cy.toFixed(2)}) rotate(${(a*180/Math.PI).toFixed(2)})\"/>`;
+            }
+          }
+        }
+      }
+
+      const svgText = `<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n` +
+        `<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"-320 -320 640 640\">\n` +
+        `  <defs>\n` +
+        `    <mask id=\"gearMask\" maskUnits=\"userSpaceOnUse\" x=\"-320\" y=\"-320\" width=\"640\" height=\"640\">\n` +
+        `      ${maskContent}\n` +
+        `    </mask>\n` +
+        `  </defs>\n` +
+        `  <g transform=\"rotate(${S.rotation})\" mask=\"url(#gearMask)\">\n` +
+        `    <path d=\"${dPath}\" fill=\"${getGearColor(S.hue)}\" stroke=\"${S.stroke}\" stroke-width=\"2\"/>\n` +
+        `  </g>\n` +
+        `</svg>`;
+
+      const blob = new Blob([svgText], {type: 'image/svg+xml'});
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = `gear_${S.teeth}t.svg`;
+      document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+    });
+
+    buttons.random.addEventListener('click', () => {
+      const rand = (min, max, step=1) => Math.round((min + Math.random()*(max-min)) / step) * step;
+      S.teeth = rand(6, 120);
+      S.module = rand(3, 16, 0.5);
+      S.toothWidthRatio = Math.round((0.25 + Math.random()*0.35)*100)/100;
+      S.addendum = rand(2, 18, 0.5);
+      S.valleyDepth = rand(2, 22, 0.5);
+      S.hubShape = ['circle','rounded-square','square','hexagon'][rand(0,3)];
+      S.holeShape = ['circle','rounded-square','square','hexagon'][rand(0,3)];
+      S.hubRadius = rand(10, 120);
+      S.holeRadius = rand(0, Math.max(0, S.hubRadius-6));
+      S.cutoutStyle = ['none','radial-circles','radial-squares','spokes','star'][rand(0,4)];
+      S.cutoutCount = rand(0, 16);
+      S.cutoutSize = rand(6, 40);
+      S.cutoutRingRatio = Math.round((0.3 + Math.random()*0.5)*100)/100;
+      S.hue = rand(0,360);
+      inputs.teeth.value = S.teeth;
+      inputs.module.value = S.module;
+      inputs.toothWidthRatio.value = S.toothWidthRatio;
+      inputs.addendum.value = S.addendum;
+      inputs.valleyDepth.value = S.valleyDepth;
+      inputs.hubShape.value = S.hubShape;
+      inputs.holeShape.value = S.holeShape;
+      inputs.hubRadius.value = S.hubRadius;
+      inputs.holeRadius.value = S.holeRadius;
+      inputs.cutoutStyle.value = S.cutoutStyle;
+      inputs.cutoutCount.value = S.cutoutCount;
+      inputs.cutoutSize.value = S.cutoutSize;
+      inputs.cutoutRingRatio.value = S.cutoutRingRatio;
+      inputs.hue.value = S.hue;
+      update();
+    });
+
+    buttons.reset.addEventListener('click', (e)=>{
+      e.preventDefault();
+      Object.assign(S, {
+        teeth: 24, module: 8, toothWidthRatio: 0.40, addendum: 8, valleyDepth: 9.6,
+        hubShape: 'circle', holeShape: 'circle', hubRadius: 60, holeRadius: 20,
+        cutoutStyle: 'none', cutoutCount: 8, cutoutSize: 16, cutoutRingRatio: 0.60,
+        hue: 200, stroke: '#1f2937', rotation: 0
+      });
+      Object.entries(inputs).forEach(([k, el]) => { el.value = S[k]; });
+      update();
+    });
+
+    // Init
+    window.addEventListener('load', () => { update(); requestAnimationFrame(animate); });
+  </script>
+</body>
+</html>
