@@ -6,7 +6,19 @@ The plan is to clean it up with Copilot, give it some structure, and iterate pas
 
 ## Run
 
-Open `gears.html` in a modern browser.
+```bash
+npm install
+npm run dev      # local dev server
+npm run build    # production build into dist/
+```
+
+Pages: the game at `/` and the designer at `/designer/`.
+
+Both pages share a header built from [`@noahwright/design`](https://github.com/NoahWright87/design) (home link back to https://noahwright.dev, light/dark toggle). The shared chrome lives in `src/chrome.tsx`; the game and designer logic is still inline in each page's HTML.
+
+## Deploy
+
+Published at https://gears.noahwright.dev from Netlify. `netlify.toml` runs `npm run build` and publishes `dist/`.
 
 ## Gear Designer
 
@@ -18,4 +30,4 @@ Open `gears.html` in a modern browser.
 - Visuals: hue and stroke color
 - Export: copy the gear path or download a minimal SVG
 
-Open `gear-designer.html` directly or use the "Designer" link in the game header.
+Open `/designer/` or use the "Designer" link in the game header.
