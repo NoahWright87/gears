@@ -5,6 +5,7 @@
 - Vite + React build; shared header from `@noahwright/design` with a link home to noahwright.dev and a theme toggle.
 - Renamed `gears.html` → `index.html` and `gear-designer.html` → `designer/index.html`.
 - Added `netlify.toml` for gears.noahwright.dev.
+- Pinned `@noahwright/design` to exactly 1.3.0.
 
 
 ## v1.0
