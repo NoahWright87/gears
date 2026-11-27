@@ -22,7 +22,7 @@ Published at https://gears.noahwright.dev from Netlify. `netlify.toml` runs `npm
 
 ## Gear Designer
 
-`gear-designer.html` lets you design custom gear shapes with live SVG preview:
+The designer at `designer/index.html` (served at `/designer/`) lets you design custom gear shapes with live SVG preview:
 
 - Teeth: count, width ratio, addendum (tip), valley depth
 - Hub & hole: shape (circle, rounded square, square, hexagon) and sizes
